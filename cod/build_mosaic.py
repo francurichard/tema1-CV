@@ -12,6 +12,7 @@ from math import sqrt
 # https://www.quora.com/How-can-you-find-the-coordinates-in-a-hexagon
 # https://stackoverflow.com/questions/15341538/numpy-opencv-2-how-do-i-crop-non-rectangular-region
 
+# calculez coordonatele varfurilor hexagonului
 def get_vertices_coordinates(height, width):
     A = (width - 1, height // 2)
     B = (3 * width // 4, 0)
@@ -35,7 +36,11 @@ def load_pieces(params: Parameters):
 
     images = []
     for filename in filenames:
-        image = cv.imread('{}/{}'.format(params.small_images_dir, filename))
+        if params.grayscale:
+            image = cv.imread('{}/{}'.format(params.small_images_dir, filename), 0)
+            image = np.array([[[s, s, s] for s in r] for r in image], dtype=np.uint8)
+        else:
+            image = cv.imread('{}/{}'.format(params.small_images_dir, filename))
         images.append(image)
 
     images = np.array(images)
@@ -93,7 +98,7 @@ def compute_dimensions(params: Parameters):
         small_image_height)
     # redimensioneaza imaginea
     if params.hexagon:
-        new_w = small_image_width * (params.num_pieces_horizontal + 1)
+        new_w = small_image_width * params.num_pieces_horizontal
         params.num_pieces_horizontal = int(params.num_pieces_horizontal // 1.5)
     else:
         new_w = small_image_width * params.num_pieces_horizontal

@@ -8,15 +8,14 @@ from parameters import *
 from build_mosaic import *
 import os
 
-
 IMAGES_DIR = './../data/imaginiTest'
-test_images = os.listdir(IMAGES_DIR)
+filenames = os.listdir(IMAGES_DIR)
 dimensions = [100, 75, 50, 25]
 
-for img in test_images:
-   for dim in dimensions:
+for filename in filenames:
+    # for dim in dimensions:
         # numele imaginii care va fi transformata in mozaic
-        image_path = '{}/{}'.format()
+        image_path = '{}/{}'.format(IMAGES_DIR, filename)
         params = Parameters(image_path)
 
         # directorul cu imagini folosite pentru realizarea mozaicului
@@ -35,8 +34,10 @@ for img in test_images:
         # optiuni: 'aleator', 'distantaCuloareMedie'
         params.criterion = 'distantaCuloareMedie'
         # daca params.layout == 'caroiaj', sa se foloseasca piese hexagonale
-        params.hexagon = True
+        params.hexagon = False
+        params.different_neighbors = True
+
         load_pieces(params)
 
         img_mosaic = build_mosaic(params)
-        cv.imwrite('mozaic.png', img_mosaic)
+        cv.imwrite('./result_caroiaj_dff_neighs_distanta_minima/{}_{}.png'.format(filename.split('.')[0], 100), img_mosaic)
