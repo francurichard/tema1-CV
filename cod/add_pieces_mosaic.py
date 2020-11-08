@@ -1,14 +1,26 @@
 from parameters import *
 import numpy as np
-import pdb
 import timeit
 from sklearn.metrics import pairwise_distances
 import matplotlib.pyplot as plt
 
 
+def extract_hexagon(params: Parameters, img):
+    return img[params.hexagon_mask[0], params.hexagon_mask[1]]
+
+
+def replace_hexagon(params, IMG, img, start_x, start_y):
+    start_x = int(start_x)
+    start_y = int(start_y)
+    IMG[np.add(params.hexagon_mask[0], start_x), np.add(params.hexagon_mask[1], start_y), :] = img
+    return IMG
+
 
 def get_best_match(params: Parameters, area_to_match, metric='euclidean'):
-    mean_color = np.mean(area_to_match, axis=(0, 1))
+    if params.hexagon:
+        mean_color = np.mean(area_to_match, axis=0)
+    else:
+        mean_color = np.mean(area_to_match, axis=(0, 1))
     mean_color = mean_color.reshape(1, -1)
     min_, best = float('inf'), -1
     for i, mean_ in enumerate(params.small_images_mean_color):
@@ -24,7 +36,7 @@ def get_best_match(params: Parameters, area_to_match, metric='euclidean'):
 def add_pieces_grid(params: Parameters):
     start_time = timeit.default_timer()
     img_mosaic = np.zeros(params.image_resized.shape, np.uint8)
-    N, H, W, C = params.small_images.shape
+    N, H, W, C = params.small_images_shape
     h, w, c = params.image_resized.shape
     num_pieces = params.num_pieces_vertical * params.num_pieces_horizontal
 
@@ -36,15 +48,10 @@ def add_pieces_grid(params: Parameters):
                 print('Building mosaic %.2f%%' % (100 * (i * params.num_pieces_horizontal + j + 1) / num_pieces))
 
     elif params.criterion == 'distantaCuloareMedie':
-        unit_height_rescale = params.image.shape[0] / params.num_pieces_vertical
-        unit_width_rescale = params.image.shape[1] / params.num_pieces_horizontal
-        print(unit_width_rescale)
-        print(unit_height_rescale)
         for i in range(params.num_pieces_vertical):
             for j in range(params.num_pieces_horizontal):
                 area_to_match = \
-                    params.image[int(i * unit_height_rescale):int((i + 1) * unit_height_rescale),
-                    int(j * unit_width_rescale):int((j + 1) * unit_width_rescale), :]
+                    params.image_resized[i * H:(i + 1) * H, j * W:(j + 1) * W, :]
                 img_mosaic[i * H: (i + 1) * H, j * W: (j + 1) * W, :] = get_best_match(params, area_to_match)
                 print('Building mosaic %.2f%%' % (100 * (i * params.num_pieces_horizontal + j + 1) / num_pieces))
     else:
@@ -60,21 +67,15 @@ def add_pieces_grid(params: Parameters):
 def add_pieces_random(params: Parameters):
     start_time = timeit.default_timer()
     img_mosaic = np.zeros(params.image_resized.shape, np.uint8)
-    N, H, W, C = params.small_images.shape
+    N, H, W, C = params.small_images_shape
     h, w, c = params.image_resized.shape
     num_pieces = params.num_pieces_vertical * params.num_pieces_horizontal
-    y_pos = np.random.choice(h - H, params.num_pieces_vertical, replace=False)
-    x_pos = np.random.choice(w - W, params.num_pieces_horizontal, replace=False)
-    unit_height_rescale = params.image.shape[0] / params.num_pieces_vertical
-    unit_width_rescale = params.image.shape[1] / params.num_pieces_horizontal
     for i in range(params.num_pieces_vertical):
         for j in range(params.num_pieces_horizontal):
             ii = np.random.choice(h - H, 1, replace=False)[0]
             jj = np.random.choice(w - W, 1, replace=False)[0]
 
-            area_to_match = \
-                params.image[int(ii * unit_height_rescale / H):int((ii + H) * unit_height_rescale / H),
-                int(jj * unit_width_rescale / W):int((jj + W) * unit_width_rescale / W), :]
+            area_to_match = params.image_resized[ii:ii + H, jj:jj + W, :]
             img_mosaic[ii: ii + H, jj: jj + W, :] = get_best_match(params, area_to_match)
             print('Building mosaic %.2f%%' % (100 * (i * params.num_pieces_horizontal + j + 1) / num_pieces))
 
@@ -87,6 +88,35 @@ def add_pieces_random(params: Parameters):
 def add_pieces_hexagon(params: Parameters):
     start_time = timeit.default_timer()
     img_mosaic = np.zeros(params.image_resized.shape, np.uint8)
-    N, H, W, C = params.small_images.shape
+    N, H, W, C = params.small_images_shape
     h, w, c = params.image_resized.shape
     num_pieces = params.num_pieces_vertical * params.num_pieces_horizontal
+    for i in range(params.num_pieces_vertical):
+        for j in range(params.num_pieces_horizontal):
+            # print(i)
+            # print(j)
+            area_to_match = params.image_resized[i * H:(i + 1) * H, int(j * 1.5 * W): int(j * 1.5 * W + W), :]
+            area_to_match = extract_hexagon(params, area_to_match)
+            img_mosaic = replace_hexagon(
+                params,
+                img_mosaic,
+                get_best_match(params, area_to_match),
+                i * H,
+                j * 1.5 * W)
+            if i != params.num_pieces_vertical - 1:
+                area_to_match = params.image_resized[i * H + H // 2: (i + 1) * H + H // 2,
+                                int(3 * W // 4 + j * 1.5 * W):int(3 * W // 4 + j * 1.5 * W + W), :]
+                area_to_match = extract_hexagon(params, area_to_match)
+                img_mosaic = replace_hexagon(
+                    params,
+                    img_mosaic,
+                    get_best_match(params, area_to_match),
+                    i * H + H // 2,
+                    3 * W // 4 + j * 1.5 * W
+                )
+            print('Building mosaic %.2f%%' % (100 * (i * params.num_pieces_horizontal + j + 1) / num_pieces))
+
+
+    end_time = timeit.default_timer()
+    print('Running time: %f s.' % (end_time - start_time))
+    return img_mosaic

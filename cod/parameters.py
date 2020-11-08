@@ -23,3 +23,4 @@ class Parameters:
         self.small_images = None
         self.small_images_mean_color = None
         self.hexagon_mask = None
+        self.small_images_shape = None

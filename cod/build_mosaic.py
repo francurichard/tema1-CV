@@ -13,28 +13,14 @@ from math import sqrt
 # https://stackoverflow.com/questions/15341538/numpy-opencv-2-how-do-i-crop-non-rectangular-region
 
 def get_vertices_coordinates(height, width):
-    a = min(height, width) // 2
-    # center coordinates
-    x0, y0 = width // 2, height // 2
-    print(height, width)
-    print(x0, y0)
-    A = (x0 + a, y0)
-    B = (x0 + a // 2, y0 + (sqrt(3) * a) // 2)
-    C = (x0 - a // 2, y0 + (sqrt(3) * a) // 2)
-    D = (x0 - a, y0)
-    E = (x0 - a // 2, y0 - (sqrt(3) * a) // 2)
-    F = (x0 + a // 2, y0 - (sqrt(3) * a) // 2)
+    A = (width - 1, height // 2)
+    B = (3 * width // 4, 0)
+    C = (width // 4, 0)
+    D = (0, height // 2)
+    E = (width // 4, height - 1)
+    F = (3 * width // 4, height - 1)
     vertices = np.array([[A, B, C, D, E, F]], dtype=np.int32)
     return vertices
-
-
-def extract_hexagon(params: Parameters, img):
-    return img[params.hexagon_mask]
-
-
-def replace_hexagon(params, IMG, img, start_x, start_y):
-    IMG[np.add(params.hexagon_mask, [start_x, start_y])] = img[params.hexagon_mask]
-    return IMG
 
 
 def load_pieces(params: Parameters):
@@ -52,21 +38,30 @@ def load_pieces(params: Parameters):
         image = cv.imread('{}/{}'.format(params.small_images_dir, filename))
         images.append(image)
 
-    height, width = images[0].shape[:2]
-    vertices = get_vertices_coordinates(height, width)
-    mask = np.zeros(images[0].shape, dtype=np.uint8)
-    channel_count = images[0].shape[2]
-    ignore_mask_color = (255,) * channel_count
-    hex_ = cv.fillConvexPoly(mask, vertices, ignore_mask_color)
-    hex_mask = []
-    for i in range(hex_.shape[0]):
-        for j in range(hex_.shape[1]):
-            if hex_[i][j] == [255, 255, 255]:
-                hex_mask.append([i, j])
-
-    params.hexagon_mask = np.array(hex_mask)
-
     images = np.array(images)
+    params.small_images_shape = images.shape
+    if params.hexagon:
+        height, width = images[0].shape[:2]
+        vertices = get_vertices_coordinates(height, width)
+        mask = np.zeros(images[0].shape, dtype=np.uint8)
+        channel_count = images[0].shape[2]
+        ignore_mask_color = (255,) * channel_count
+        hex_ = cv.fillConvexPoly(mask, vertices, ignore_mask_color)
+        r_mask = []
+        c_mask = []
+        for i in range(hex_.shape[0]):
+            for j in range(hex_.shape[1]):
+                if (hex_[i][j] == np.array([255, 255, 255])).all():
+                    r_mask.append(i)
+                    c_mask.append(j)
+
+        new_images = []
+        params.hexagon_mask = np.array([r_mask, c_mask])
+        for i, image in enumerate(images):
+            new_images.append(extract_hexagon(params, image))
+
+        images = np.array(new_images)
+
     if params.show_small_images:
         for i in range(10):
             for j in range(10):
@@ -78,12 +73,10 @@ def load_pieces(params: Parameters):
                 plt.imshow(im)
         plt.show()
 
-    params.small_images_mean_color = np.mean(images, axis=(1, 2))
+    if params.hexagon:
+        params.small_images_mean_color = np.mean(images, axis=1)
+    else:params.small_images_mean_color = np.mean(images, axis=(1, 2))
     params.small_images = images
-    # print(params.small_images_mean_color[0])
-    # print(params.small_images_mean_color.shape)
-    # print(params.small_images.shape)
-    # exit(0)
 
 
 def compute_dimensions(params: Parameters):
@@ -94,20 +87,19 @@ def compute_dimensions(params: Parameters):
     # completati codul
     # calculeaza automat numarul de piese pe verticala
     # image.shape -> height, width, channels
-    small_image_height, small_image_width = params.small_images[0].shape[:2]
-    # new_w = small_image_width * params.num_pieces_horizontal
-    # new_h = int((params.image.shape[0] * new_w) / params.image.shape[1]) -
-    print(small_image_height)
-    print(small_image_width)
-    # params.num_pieces_vertical = int((params.image.shape[0] * params.num_pieces_horizontal) / params.image.shape[1])
+    _, small_image_height, small_image_width, _ = params.small_images_shape
     params.num_pieces_vertical = int(
         params.image.shape[0] * small_image_width * params.num_pieces_horizontal / params.image.shape[1] /
-        params.small_images[0].shape[0])
+        small_image_height)
     # redimensioneaza imaginea
-    new_h = params.small_images[0].shape[0] * params.num_pieces_vertical
-    new_w = params.small_images[0].shape[1] * params.num_pieces_horizontal
-    print(new_h)
-    print(new_w)
+    if params.hexagon:
+        new_w = small_image_width * (params.num_pieces_horizontal + 1)
+        params.num_pieces_horizontal = int(params.num_pieces_horizontal // 1.5)
+    else:
+        new_w = small_image_width * params.num_pieces_horizontal
+
+    new_h = small_image_height * params.num_pieces_vertical
+    # print(new_w, new_h)
     params.image_resized = cv.resize(params.image, (new_w, new_h))
 
 
